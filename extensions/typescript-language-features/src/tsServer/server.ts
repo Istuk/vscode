@@ -311,7 +311,10 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		this._register(syntaxServer.onEvent(e => this._onEvent.fire(e)));
 		this._register(semanticServer.onEvent(e => this._onEvent.fire(e)));
 
-		this._register(semanticServer.onExit(e => this._onExit.fire(e)));
+		this._register(semanticServer.onExit(e => {
+			this._onExit.fire(e);
+			this.syntaxServer.kill();
+		}));
 		this._register(semanticServer.onError(e => this._onError.fire(e)));
 	}
 
@@ -340,6 +343,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		'selectionRange',
 		'format',
 		'formatonkey',
+		'docCommentTemplate',
 	]);
 	private static readonly sharedCommands = new Set<keyof TypeScriptRequests>([
 		'change',

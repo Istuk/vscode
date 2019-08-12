@@ -13,7 +13,7 @@ import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -21,6 +21,7 @@ import { OutlineConfigKeys } from 'vs/editor/contrib/documentSymbols/outline';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IdleValue } from 'vs/base/common/async';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 
@@ -37,23 +38,26 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 
 
 export class OutlineIdentityProvider implements IIdentityProvider<OutlineItem> {
-	getId(element: TreeElement): { toString(): string; } {
+	getId(element: OutlineItem): { toString(): string; } {
 		return element.id;
 	}
 }
 
 export class OutlineGroupTemplate {
 	static id = 'OutlineGroupTemplate';
-
-	labelContainer: HTMLElement;
-	label: HighlightedLabel;
+	constructor(
+		readonly labelContainer: HTMLElement,
+		readonly label: HighlightedLabel,
+	) { }
 }
 
 export class OutlineElementTemplate {
 	static id = 'OutlineElementTemplate';
-	container: HTMLElement;
-	iconLabel: IconLabel;
-	decoration: HTMLElement;
+	constructor(
+		readonly container: HTMLElement,
+		readonly iconLabel: IconLabel,
+		readonly decoration: HTMLElement,
+	) { }
 }
 
 export class OutlineVirtualDelegate implements IListVirtualDelegate<OutlineItem> {
@@ -79,7 +83,7 @@ export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzySc
 		const labelContainer = dom.$('.outline-element-label');
 		dom.addClass(container, 'outline-element');
 		dom.append(container, labelContainer);
-		return { labelContainer, label: new HighlightedLabel(labelContainer, true) };
+		return new OutlineGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
 	}
 
 	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
@@ -108,7 +112,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		const decoration = dom.$('.outline-element-decoration');
 		container.appendChild(decoration);
-		return { container, iconLabel, decoration };
+		return new OutlineElementTemplate(container, iconLabel, decoration);
 	}
 
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, index: number, template: OutlineElementTemplate): void {
@@ -208,6 +212,8 @@ export const enum OutlineSortOrder {
 
 export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
+	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+
 	constructor(
 		public type: OutlineSortOrder = OutlineSortOrder.ByPosition
 	) { }
@@ -218,11 +224,11 @@ export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
 			if (this.type === OutlineSortOrder.ByKind) {
-				return a.symbol.kind - b.symbol.kind || a.symbol.name.localeCompare(b.symbol.name, undefined, { numeric: true });
+				return a.symbol.kind - b.symbol.kind || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			} else if (this.type === OutlineSortOrder.ByName) {
-				return a.symbol.name.localeCompare(b.symbol.name, undefined, { numeric: true }) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+				return this._collator.getValue().compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
 			} else if (this.type === OutlineSortOrder.ByPosition) {
-				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || a.symbol.name.localeCompare(b.symbol.name, undefined, { numeric: true });
+				return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.getValue().compare(a.symbol.name, b.symbol.name);
 			}
 		}
 		return 0;

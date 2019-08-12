@@ -12,10 +12,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { ISignService } from 'vs/platform/sign/common/sign';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -37,19 +37,19 @@ interface ILaunchVSCodeArguments {
  */
 export class RawDebugSession {
 
-	private allThreadsContinued: boolean;
-	private _readyForBreakpoints: boolean;
+	private allThreadsContinued = true;
+	private _readyForBreakpoints = false;
 	private _capabilities: DebugProtocol.Capabilities;
 
 	// shutdown
-	private debugAdapterStopped: boolean;
-	private inShutdown: boolean;
-	private terminated: boolean;
-	private firedAdapterExitEvent: boolean;
+	private debugAdapterStopped = false;
+	private inShutdown = false;
+	private terminated = false;
+	private firedAdapterExitEvent = false;
 
 	// telemetry
-	private startTime: number;
-	private didReceiveStoppedEvent: boolean;
+	private startTime = 0;
+	private didReceiveStoppedEvent = false;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -73,19 +73,11 @@ export class RawDebugSession {
 		dbgr: IDebugger,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly signService: ISignService,
 		private readonly windowsService: IWindowsService
 
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
-		this._readyForBreakpoints = false;
-		this.inShutdown = false;
-		this.debugAdapterStopped = false;
-		this.firedAdapterExitEvent = false;
-		this.didReceiveStoppedEvent = false;
-
-		this.allThreadsContinued = true;
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -125,8 +117,8 @@ export class RawDebugSession {
 					break;
 				case 'capabilities':
 					if (event.body) {
-						const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-						this.mergeCapabilities(capabilites);
+						const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+						this.mergeCapabilities(capabilities);
 					}
 					break;
 				case 'stopped':
@@ -547,19 +539,6 @@ export class RawDebugSession {
 					safeSendResponse(response);
 				});
 				break;
-			case 'handshake':
-				try {
-					const signature = await this.signService.sign(request.arguments.value);
-					response.body = {
-						signature: signature
-					};
-					safeSendResponse(response);
-				} catch (e) {
-					response.success = false;
-					response.message = e.message;
-					safeSendResponse(response);
-				}
-				break;
 			default:
 				response.success = false;
 				response.message = `unknown request '${request.command}'`;
@@ -597,16 +576,33 @@ export class RawDebugSession {
 						}
 
 					} else {
-						args[key] = value;
+						(<any>args)[key] = value;
 					}
 
 				} else {
-					args._.push(a2);
+					const match = /^--(.+)$/.exec(a2);
+					if (match && match.length === 2) {
+						const key = match[1];
+						(<any>args)[key] = true;
+					} else {
+						args._.push(a2);
+					}
 				}
 			}
 		}
 
-		return this.windowsService.openExtensionDevelopmentHostWindow(args);
+		let env: IProcessEnvironment = {};
+		if (vscodeArgs.env) {
+			// merge environment variables into a copy of the process.env
+			if (typeof process === 'object' && process.env) {
+				env = objects.mixin(env, process.env);
+			}
+			env = objects.mixin(env, vscodeArgs.env);
+			// and delete some if necessary
+			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
+		}
+
+		return this.windowsService.openExtensionDevelopmentHostWindow(args, env);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {

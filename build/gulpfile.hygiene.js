@@ -119,7 +119,8 @@ const copyrightFilter = [
 	'!resources/completions/**',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
-	'!extensions/*/server/bin/*'
+	'!extensions/*/server/bin/*',
+	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
 const eslintFilter = [
@@ -274,7 +275,7 @@ function hygiene(some) {
 	const result = input
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(productJsonFilter)
-		.pipe(productJson)
+		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)

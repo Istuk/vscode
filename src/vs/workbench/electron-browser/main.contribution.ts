@@ -13,10 +13,9 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenNewsletterSignupUrlAction } from 'vs/workbench/electron-browser/actions/helpActions';
 import { ToggleSharedProcessAction, ToggleDevToolsAction } from 'vs/workbench/electron-browser/actions/developerActions';
-import { ShowAboutDialogAction, ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, OpenRecentAction, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-browser/actions/windowActions';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, CloseWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -24,8 +23,6 @@ import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspa
 import { SupportsWorkspacesContext, IsMacContext, HasMacNativeTabsContext, IsDevelopmentContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { LogStorageAction } from 'vs/platform/storage/node/storageService';
-import product from 'vs/platform/product/node/product';
 
 // Actions
 (function registerActions(): void {
@@ -35,31 +32,7 @@ import product from 'vs/platform/product/node/product';
 	(function registerFileActions(): void {
 		const fileCategory = nls.localize('file', "File");
 
-		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
-
-		const recentFilesPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inRecentFilesPickerContextKey));
-
-		const quickOpenNavigateNextInRecentFilesPickerId = 'workbench.action.quickOpenNavigateNextInRecentFilesPicker';
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: quickOpenNavigateNextInRecentFilesPickerId,
-			weight: KeybindingWeight.WorkbenchContrib + 50,
-			handler: getQuickNavigateHandler(quickOpenNavigateNextInRecentFilesPickerId, true),
-			when: recentFilesPickerContext,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
-		});
-
-		const quickOpenNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: quickOpenNavigatePreviousInRecentFilesPicker,
-			weight: KeybindingWeight.WorkbenchContrib + 50,
-			handler: getQuickNavigateHandler(quickOpenNavigatePreviousInRecentFilesPicker, false),
-			when: recentFilesPickerContext,
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
-		});
 	})();
 
 	// Actions: View
@@ -79,7 +52,7 @@ import product from 'vs/platform/product/node/product';
 		registry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: 'workbench.action.closeWindow', // close the window when the last editor is closed by reusing the same keybinding
+			id: CloseCurrentWindowAction.ID, // close the window when the last editor is closed by reusing the same keybinding
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
@@ -150,7 +123,6 @@ import product from 'vs/platform/product/node/product';
 		const developerCategory = nls.localize('developer', "Developer");
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowWithExtensionsDisabledAction, ReloadWindowWithExtensionsDisabledAction.ID, ReloadWindowWithExtensionsDisabledAction.LABEL), 'Developer: Reload Window With Extensions Disabled', developerCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL), 'Developer: Toggle Developer Tools', developerCategory);
 
 		KeybindingsRegistry.registerKeybindingRule({
@@ -190,7 +162,6 @@ import product from 'vs/platform/product/node/product';
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRequestFeatureUrlAction, OpenRequestFeatureUrlAction.ID, OpenRequestFeatureUrlAction.LABEL), 'Help: Search Feature Requests', helpCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenLicenseUrlAction, OpenLicenseUrlAction.ID, OpenLicenseUrlAction.LABEL), 'Help: View License', helpCategory);
 		registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPrivacyStatementUrlAction, OpenPrivacyStatementUrlAction.ID, OpenPrivacyStatementUrlAction.LABEL), 'Help: Privacy Statement', helpCategory);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAboutDialogAction, ShowAboutDialogAction.ID, ShowAboutDialogAction.LABEL), `Help: About ${product.applicationName}`, helpCategory);
 	})();
 })();
 
@@ -203,23 +174,6 @@ import product from 'vs/platform/product/node/product';
 			title: nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
 		},
 		order: 2
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		title: nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
-		submenu: MenuId.MenubarRecentMenu,
-		group: '2_open',
-		order: 4
-	});
-
-	// More
-	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
-		group: 'y_more',
-		command: {
-			id: OpenRecentAction.ID,
-			title: nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More...")
-		},
-		order: 1
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -316,7 +270,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '1_welcome',
 		command: {
-			id: 'workbench.action.openDocumentationUrl',
+			id: OpenDocumentationUrlAction.ID,
 			title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
 		},
 		order: 3
@@ -335,7 +289,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '2_reference',
 		command: {
-			id: 'workbench.action.keybindingsReference',
+			id: KeybindingsReferenceAction.ID,
 			title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
 		},
 		order: 1
@@ -344,7 +298,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '2_reference',
 		command: {
-			id: 'workbench.action.openIntroductoryVideosUrl',
+			id: OpenIntroductoryVideosUrlAction.ID,
 			title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
 		},
 		order: 2
@@ -353,7 +307,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '2_reference',
 		command: {
-			id: 'workbench.action.openTipsAndTricksUrl',
+			id: OpenTipsAndTricksUrlAction.ID,
 			title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
 		},
 		order: 3
@@ -363,7 +317,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'workbench.action.openTwitterUrl',
+			id: OpenTwitterUrlAction.ID,
 			title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter")
 		},
 		order: 1
@@ -372,7 +326,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'workbench.action.openRequestFeatureUrl',
+			id: OpenRequestFeatureUrlAction.ID,
 			title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
 		},
 		order: 2
@@ -391,7 +345,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '4_legal',
 		command: {
-			id: 'workbench.action.openLicenseUrl',
+			id: OpenLicenseUrlAction.ID,
 			title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
 		},
 		order: 1
@@ -400,7 +354,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '4_legal',
 		command: {
-			id: 'workbench.action.openPrivacyStatementUrl',
+			id: OpenPrivacyStatementUrlAction.ID,
 			title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
 		},
 		order: 2
@@ -410,7 +364,7 @@ import product from 'vs/platform/product/node/product';
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '5_tools',
 		command: {
-			id: 'workbench.action.toggleDevTools',
+			id: ToggleDevToolsAction.ID,
 			title: nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")
 		},
 		order: 1
@@ -423,17 +377,6 @@ import product from 'vs/platform/product/node/product';
 			title: nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
 		},
 		order: 2
-	});
-
-	// About
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: 'z_about',
-		command: {
-			id: 'workbench.action.showAboutDialog',
-			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
-		},
-		order: 1,
-		when: IsMacContext.toNegated()
 	});
 })();
 
@@ -550,7 +493,7 @@ import product from 'vs/platform/product/node/product';
 				'default': true,
 				'description': nls.localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 				'scope': ConfigurationScope.APPLICATION,
-				'included': false /* isMacintosh */
+				'included': isMacintosh
 			},
 			'window.clickThroughInactive': {
 				'type': 'boolean',
@@ -558,6 +501,28 @@ import product from 'vs/platform/product/node/product';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			}
+		}
+	});
+
+	// Screencast Mode
+	registry.registerConfiguration({
+		id: 'screencastMode',
+		order: 9,
+		title: nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+		type: 'object',
+		properties: {
+			'screencastMode.verticalOffset': {
+				type: 'number',
+				default: 20,
+				minimum: 0,
+				maximum: 90,
+				description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			},
+			'screencastMode.onlyKeyboardShortcuts': {
+				type: 'boolean',
+				description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+				default: false
 			}
 		}
 	});
